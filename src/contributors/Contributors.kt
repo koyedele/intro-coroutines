@@ -84,6 +84,7 @@ interface Contributors: CoroutineScope {
                 launch(Dispatchers.Default) {
                     val users = loadContributorsConcurrent(service, req)
                     withContext(Dispatchers.Main) {
+                        // update results using Main thread
                         updateResults(users, startTime)
                     }
                 }.setUpCancellation()
