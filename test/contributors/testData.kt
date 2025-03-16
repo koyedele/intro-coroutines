@@ -1,5 +1,7 @@
 package contributors
 
+import io.reactivex.rxjava3.schedulers.TestScheduler
+
 val testRequestData = RequestData("username", "password", "org")
 
 data class TestRepo(val name: String, val delay: Long, val users: List<User>)
@@ -72,3 +74,5 @@ val concurrentProgressResults = listOf(
     ),
     expectedConcurrentResults
 )
+
+val testScheduler = TestScheduler()

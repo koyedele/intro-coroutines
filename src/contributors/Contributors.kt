@@ -8,6 +8,7 @@ import java.awt.event.ActionListener
 import javax.swing.SwingUtilities
 import kotlin.coroutines.CoroutineContext
 import kotlin.system.exitProcess
+import io.reactivex.rxjava3.disposables.Disposable
 
 enum class Variant {
     BLOCKING,         // Request1Blocking
@@ -17,7 +18,9 @@ enum class Variant {
     CONCURRENT,       // Request5Concurrent
     NOT_CANCELLABLE,  // Request6NotCancellable
     PROGRESS,         // Request6Progress
-    CHANNELS          // Request7Channels
+    CHANNELS,         // Request7Channels
+    RX,               // Request8Rx
+    RX_PROGRESS       // Request9RxProgress
 }
 
 interface Contributors: CoroutineScope {
@@ -79,9 +82,12 @@ interface Contributors: CoroutineScope {
                 }.setUpCancellation()
             }
             CONCURRENT -> { // Performing requests concurrently
-                launch {
+                launch(Dispatchers.Default) {
                     val users = loadContributorsConcurrent(service, req)
-                    updateResults(users, startTime)
+                    withContext(Dispatchers.Main) {
+                        // update results using Main thread
+                        updateResults(users, startTime)
+                    }
                 }.setUpCancellation()
             }
             NOT_CANCELLABLE -> { // Performing requests in a non-cancellable way
@@ -107,6 +113,32 @@ interface Contributors: CoroutineScope {
                         }
                     }
                 }.setUpCancellation()
+            }
+            RX -> {  // Using RxJava
+                loadContributorsReactive(service, req)
+                    .subscribe { users ->
+                        SwingUtilities.invokeLater {
+                            updateResults(users, startTime)
+                        }
+                    }.setupCancellation()
+            }
+            RX_PROGRESS -> {
+                loadContributorsReactiveProgress(service, req)
+                    .subscribe({
+                        SwingUtilities.invokeLater {
+                            updateResults(it, startTime, false)
+                        }
+                    }, {
+                        SwingUtilities.invokeLater {
+                            setLoadingStatus("error: ${it.message}", false)
+                            setActionsStatus(newLoadingEnabled = true)
+                        }
+                }, {
+                    SwingUtilities.invokeLater {
+                        updateLoadingStatus(COMPLETED, startTime)
+                        setActionsStatus(newLoadingEnabled = true)
+                    }
+                }).setupCancellation()
             }
         }
     }
@@ -168,6 +200,22 @@ interface Contributors: CoroutineScope {
             setActionsStatus(newLoadingEnabled = true)
             removeCancelListener(listener)
         }
+    }
+
+    private fun Disposable.setupCancellation() {
+        // make active the 'cancel' button
+        setActionsStatus(newLoadingEnabled = false, cancellationEnabled = true)
+
+        val loadingDisposable = this
+
+        // cancel the loading job if the 'cancel button is clicked
+        val listener = ActionListener {
+            loadingDisposable.dispose()
+            updateLoadingStatus(CANCELED)
+            setActionsStatus(newLoadingEnabled = true)
+        }
+
+        addCancelListener(listener)
     }
 
     fun loadInitialParams() {

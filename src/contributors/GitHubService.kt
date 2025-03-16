@@ -1,7 +1,6 @@
 package contributors
 
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
-import kotlinx.serialization.ExperimentalSerializationApi
+import io.reactivex.rxjava3.core.Observable
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -9,10 +8,11 @@ import okhttp3.OkHttpClient
 import retrofit2.Call
 import retrofit2.Response
 import retrofit2.Retrofit
-import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
+import retrofit2.adapter.rxjava3.RxJava3CallAdapterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Path
-import java.util.Base64
+import java.util.*
 
 interface GitHubService {
     @GET("orgs/{org}/repos?per_page=100")
@@ -25,6 +25,28 @@ interface GitHubService {
         @Path("owner") owner: String,
         @Path("repo") repo: String
     ): Call<List<User>>
+
+    @GET("orgs/{org}/repos?per_page=100")
+    suspend fun getOrgRepos(
+        @Path("org") org: String
+    ): Response<List<Repo>>
+
+    @GET("repos/{owner}/{repo}/contributors?per_page=100")
+    suspend fun getRepoContributors(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): Response<List<User>>
+
+    @GET("orgs/{org}/repos?per_page=100")
+    fun getOrgReposRx(
+        @Path("org") org: String
+    ): Observable<Response<List<Repo>>>
+
+    @GET("repos/{owner}/{repo}/contributors?per_page=100")
+    fun getRepoContributorsRx(
+        @Path("owner") owner: String,
+        @Path("repo") repo: String
+    ): Observable<Response<List<User>>>
 }
 
 @Serializable
@@ -46,7 +68,8 @@ data class RequestData(
     val org: String
 )
 
-@OptIn(ExperimentalSerializationApi::class)
+private val json = Json { ignoreUnknownKeys = true }
+
 fun createGitHubService(username: String, password: String): GitHubService {
     val authToken = "Basic " + Base64.getEncoder().encode("$username:$password".toByteArray()).toString(Charsets.UTF_8)
     val httpClient = OkHttpClient.Builder()
@@ -63,8 +86,8 @@ fun createGitHubService(username: String, password: String): GitHubService {
     val contentType = "application/json".toMediaType()
     val retrofit = Retrofit.Builder()
         .baseUrl("https://api.github.com")
-        .addConverterFactory(Json { ignoreUnknownKeys = true }.asConverterFactory(contentType))
-        .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+        .addConverterFactory(json.asConverterFactory(contentType))
+        .addCallAdapterFactory(RxJava3CallAdapterFactory.create())
         .client(httpClient)
         .build()
     return retrofit.create(GitHubService::class.java)
