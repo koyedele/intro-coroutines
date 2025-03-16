@@ -20,6 +20,7 @@ enum class Variant {
     PROGRESS,         // Request6Progress
     CHANNELS,         // Request7Channels
     RX,               // Request8Rx
+    RX_PROGRESS       // Request9RxProgress
 }
 
 interface Contributors: CoroutineScope {
@@ -120,6 +121,24 @@ interface Contributors: CoroutineScope {
                             updateResults(users, startTime)
                         }
                     }.setupCancellation()
+            }
+            RX_PROGRESS -> {
+                loadContributorsReactiveProgress(service, req)
+                    .subscribe({
+                        SwingUtilities.invokeLater {
+                            updateResults(it, startTime, false)
+                        }
+                    }, {
+                        SwingUtilities.invokeLater {
+                            setLoadingStatus("error: ${it.message}", false)
+                            setActionsStatus(newLoadingEnabled = true)
+                        }
+                }, {
+                    SwingUtilities.invokeLater {
+                        updateLoadingStatus(COMPLETED, startTime)
+                        setActionsStatus(newLoadingEnabled = true)
+                    }
+                }).setupCancellation()
             }
         }
     }
